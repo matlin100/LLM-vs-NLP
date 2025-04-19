@@ -3,3 +3,4 @@
 data/**/*.json filter=lfs diff=lfs merge=lfs -text
 web/public/data/evaluation_data.json filter=lfs diff=lfs merge=lfs -text
 web/public/data/evaluation_data.json
+web/public/data/evaluation_data.json
