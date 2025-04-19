@@ -6,6 +6,7 @@ import os
 import logging
 from dotenv import load_dotenv
 from openai import RateLimitError
+from transformers import AutoTokenizer, AutoModel
 
 from ..models.base import EmotionLabel, EmotionTag, AnalysisResult
 from ..models.llm.analyzer import LLMEmotionAnalyzer
@@ -40,6 +41,8 @@ try:
     custom_analyzer = CustomEmotionAnalyzer(
         model_name=os.getenv("CUSTOM_MODEL_PATH", "allenai/longformer-base-4096")
     )
+    custom_analyzer.tokenizer = AutoTokenizer.from_pretrained(os.getenv("CUSTOM_MODEL_PATH", "allenai/longformer-base-4096"))
+    custom_analyzer.model = AutoModel.from_pretrained(os.getenv("CUSTOM_MODEL_PATH", "allenai/longformer-base-4096"))
     logger.info("Successfully initialized all analyzers")
 except Exception as e:
     logger.error(f"Error initializing analyzers: {str(e)}")

@@ -27,9 +27,7 @@ const EMOTION_CONFIG = {
   }
 };
 
-const getEmotionColor = (label) => {
-  return EMOTION_CONFIG[label] || { bg: 'bg-gray-100', text: 'text-gray-800' };
-};
+
 
 const ColorLegend = ({ showColors }) => (
   <div className={`transition-opacity duration-300 ${showColors ? 'opacity-100' : 'opacity-0'}`}>

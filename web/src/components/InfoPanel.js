@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useDatasetStats from '../hooks/useDatasetStats';
-import { InformationCircleIcon, ChartBarIcon, ArrowDownTrayIcon, LanguageIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, ChartBarIcon, ArrowDownTrayIcon, LanguageIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 
-const TechTooltip = ({ isHebrew, content, onMouseEnter, onMouseLeave, onLanguageToggle }) => (
+const TechTooltip = ({ isHebrew, content, onMouseEnter, onMouseLeave, onLanguageToggle, type }) => (
   <div 
     onMouseEnter={onMouseEnter}
     onMouseLeave={onMouseLeave}
-    className="absolute bottom-full right-[-20px] mb-2 w-[450px] bg-white rounded-lg shadow-xl border border-gray-200 z-50"
+    className={`
+      absolute bottom-full right-[-20px] mb-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50
+      ${type === 'training' ? 'w-[350px]' : 'w-[450px]'}
+    `}
     dir={isHebrew ? "rtl" : "ltr"}
     style={{ 
       transform: 'translateX(0)',
@@ -208,7 +211,7 @@ const InfoPanel = () => {
         <>
           <div>
             <h5 className="font-medium text-gray-600">Technology Overview</h5>
-            <p className="text-gray-500 mt-1">Custom-trained BERT model specifically optimized for emotional content analysis in medical context.</p>
+            <p className="text-gray-500 mt-1">Fine-tuned BERT model trained on emotional content</p>
           </div>
           <div>
             <h5 className="font-medium text-gray-600">How it Works</h5>
@@ -237,7 +240,48 @@ const InfoPanel = () => {
               <li>Higher memory requirements</li>
             </ul>
           </div>
-          <div className="mt-4 pt-4 border-t border-gray-100">
+        </>
+      ),
+      he: (
+        <>
+          <div>
+            <h5 className="font-medium text-gray-600">סקירה טכנולוגית</h5>
+            <p className="text-gray-500 mt-1">מודל BERT מותאם אישית שאומן במיוחד לניתוח תוכן רגשי בהקשר רפואי.</p>
+          </div>
+          <div>
+            <h5 className="font-medium text-gray-600">איך זה עובד</h5>
+            <ul className="list-disc ml-4 space-y-1 mt-1 text-gray-500">
+              <li>מודל טרנספורמר BERT מכוונן</li>
+              <li>מאומן על רשומות ותיעוד רפואי</li>
+              <li>הטמעות הקשריות למונחים רפואיים</li>
+              <li>זיהוי רגשות מותאם לתחום</li>
+            </ul>
+          </div>
+          <div>
+            <h5 className="font-medium text-gray-600">יתרונות</h5>
+            <ul className="list-disc ml-4 space-y-1 mt-1 text-gray-500">
+              <li>מותאם במיוחד להקשר רפואי</li>
+              <li>הסקה מקומית מהירה (~100ms)</li>
+              <li>דיוק גבוה (F1: 0.89)</li>
+              <li>ללא תלות ב-API</li>
+            </ul>
+          </div>
+          <div>
+            <h5 className="font-medium text-gray-600">חסרונות</h5>
+            <ul className="list-disc ml-4 space-y-1 mt-1 text-gray-500">
+              <li>מוגבל להיקף נתוני האימון</li>
+              <li>דורש אימון מחדש תקופתי</li>
+              <li>עלול להתאים יתר על המידה לתחום הרפואי</li>
+              <li>דרישות זיכרון גבוהות יותר</li>
+            </ul>
+          </div>
+        </>
+      )
+    },
+    training: {
+      en: (
+        <>
+          <div>
             <h5 className="font-medium text-gray-600">Training Statistics</h5>
             {loading ? (
               <div className="text-center py-2 text-gray-500">Loading statistics...</div>
@@ -295,37 +339,6 @@ const InfoPanel = () => {
       he: (
         <>
           <div>
-            <h5 className="font-medium text-gray-600">סקירה טכנולוגית</h5>
-            <p className="text-gray-500 mt-1">מודל BERT מותאם אישית שאומן במיוחד לניתוח תוכן רגשי בהקשר רפואי.</p>
-          </div>
-          <div>
-            <h5 className="font-medium text-gray-600">איך זה עובד</h5>
-            <ul className="list-disc ml-4 space-y-1 mt-1 text-gray-500">
-              <li>מודל טרנספורמר BERT מכוונן</li>
-              <li>מאומן על רשומות ותיעוד רפואי</li>
-              <li>הטמעות הקשריות למונחים רפואיים</li>
-              <li>זיהוי רגשות מותאם לתחום</li>
-            </ul>
-          </div>
-          <div>
-            <h5 className="font-medium text-gray-600">יתרונות</h5>
-            <ul className="list-disc ml-4 space-y-1 mt-1 text-gray-500">
-              <li>מותאם במיוחד להקשר רפואי</li>
-              <li>הסקה מקומית מהירה (~100ms)</li>
-              <li>דיוק גבוה (F1: 0.89)</li>
-              <li>ללא תלות ב-API</li>
-            </ul>
-          </div>
-          <div>
-            <h5 className="font-medium text-gray-600">חסרונות</h5>
-            <ul className="list-disc ml-4 space-y-1 mt-1 text-gray-500">
-              <li>מוגבל להיקף נתוני האימון</li>
-              <li>דורש אימון מחדש תקופתי</li>
-              <li>עלול להתאים יתר על המידה לתחום הרפואי</li>
-              <li>דרישות זיכרון גבוהות יותר</li>
-            </ul>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-100">
             <h5 className="font-medium text-gray-600">סטטיסטיקות אימון</h5>
             {loading ? (
               <div className="text-center py-2 text-gray-500">טוען סטטיסטיקות...</div>
@@ -501,13 +514,20 @@ const InfoPanel = () => {
                   <span className="text-gray-600 text-sm">
                     <div className="flex items-center gap-2">
                       <p>Fine-tuned BERT model trained on emotional content</p>
-                      <div className="relative">
+                      <div className="relative flex items-center gap-2">
                         <button
                           onMouseEnter={() => handleMouseEnter('custom')}
                           onMouseLeave={handleMouseLeave}
                           className="text-blue-500 hover:text-blue-700 transition-colors"
                         >
                           <InformationCircleIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                          onMouseEnter={() => handleMouseEnter('training')}
+                          onMouseLeave={handleMouseLeave}
+                          className="text-blue-500 hover:text-blue-700 transition-colors"
+                        >
+                          <ChartBarIcon className="w-4 h-4" />
                         </button>
                         {activeTooltip === 'custom' && (
                           <TechTooltip
@@ -516,6 +536,16 @@ const InfoPanel = () => {
                             onMouseEnter={() => handleMouseEnter('custom')}
                             onMouseLeave={handleMouseLeave}
                             onLanguageToggle={() => setIsHebrew(!isHebrew)}
+                          />
+                        )}
+                        {activeTooltip === 'training' && (
+                          <TechTooltip
+                            isHebrew={isHebrew}
+                            content={tooltipContent.training[isHebrew ? 'he' : 'en']}
+                            onMouseEnter={() => handleMouseEnter('training')}
+                            onMouseLeave={handleMouseLeave}
+                            onLanguageToggle={() => setIsHebrew(!isHebrew)}
+                            type="training"
                           />
                         )}
                       </div>
