@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import useDatasetStats from '../hooks/useDatasetStats';
-import { InformationCircleIcon, ChartBarIcon, ArrowDownTrayIcon, LanguageIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, ChartBarIcon, ArrowDownTrayIcon, LanguageIcon } from '@heroicons/react/24/outline';
 
 const TechTooltip = ({ isHebrew, content, onMouseEnter, onMouseLeave, onLanguageToggle, type }) => (
   <div 
@@ -36,10 +36,8 @@ const TechTooltip = ({ isHebrew, content, onMouseEnter, onMouseLeave, onLanguage
 
 const InfoPanel = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const [isHebrew, setIsHebrew] = useState(false);
-  const tooltipRef = useRef(null);
   const timeoutRef = useRef(null);
   const { stats, loading, error } = useDatasetStats();
 

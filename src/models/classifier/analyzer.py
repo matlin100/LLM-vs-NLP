@@ -153,30 +153,12 @@ class EmotionDataset(Dataset):
 
 class CustomEmotionAnalyzer(EmotionAnalyzer):
     def __init__(self, model_name: str = "roberta-base"):
-        try:
-            self.model_name = model_name if model_name else "roberta-base"  # Ensure default if None
-            self.tokenizer = None
-            self.model = None
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            print(f"[CustomModel] Using device: {self.device}")
-            
-            # Disable wandb and set environment
-            os.environ["WANDB_DISABLED"] = "true"
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-            
-            # Initialize in disabled mode
-            try:
-                wandb.init(project="emotion-analysis", name="inference", mode="disabled")
-            except:
-                pass
-                
-            # Load model immediately
-            self._load_model()
-            print("[CustomModel] Initialization completed successfully")
-        except Exception as e:
-            print(f"[CustomModel] Error in initialization: {str(e)}")
-            raise
-    
+        super().__init__()
+        self.model_name = model_name
+        self.tokenizer = None
+        self.model = None
+        self._load_model()
+
     def _load_model(self):
         if self.model is None:
             try:
@@ -329,164 +311,103 @@ class CustomEmotionAnalyzer(EmotionAnalyzer):
         val_texts: Optional[List[str]] = None,
         val_tags: Optional[List[List[EmotionTag]]] = None,
         output_dir: str = "./emotion_model",
-        num_epochs: int = 10,  # Increased epochs
-        batch_size: int = 8,
-        learning_rate: float = 2e-5,
+        num_epochs: int = 10,
+        batch_size: int = 64,  # Increased for H200
+        learning_rate: float = 4e-5,  # Optimized for larger batch
         warmup_ratio: float = 0.1,
-        weight_decay: float = 0.01
+        weight_decay: float = 0.01,
+        gradient_accumulation_steps: int = 1,
+        fp16: bool = True,  # Enable mixed precision
+        bf16: bool = True,  # Enable bfloat16
+        flash_attention: bool = True,  # Enable flash attention
+        gradient_checkpointing: bool = True  # Enable gradient checkpointing
     ):
-        """Train the emotion analyzer with advanced techniques."""
-        self._load_model()
+        """Train the model with optimized settings for H200."""
         
-        print("Preparing datasets...")
+        # Initialize datasets
         train_dataset = EmotionDataset(train_texts, train_tags, self.tokenizer)
-        val_dataset = EmotionDataset(val_texts, val_tags, self.tokenizer) if val_texts and val_tags else None
-        
-        # Calculate steps
-        num_training_steps = (len(train_texts) // batch_size) * num_epochs
-        warmup_steps = int(num_training_steps * warmup_ratio)
-        
-        # Initialize optimizer with different parameter groups
-        optimizer_grouped_parameters = [
-            {
-                "params": [p for n, p in self.model.named_parameters() if "roberta" in n],
-                "lr": learning_rate / 10,  # Lower learning rate for pretrained params
-            },
-            {
-                "params": [p for n, p in self.model.named_parameters() if "roberta" not in n],
-                "lr": learning_rate,
-            },
-        ]
-        
-        optimizer = torch.optim.AdamW(
-            optimizer_grouped_parameters,
-            weight_decay=weight_decay,
-            eps=1e-8
-        )
-        
-        # Cosine schedule with warmup
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=warmup_steps,
-            num_training_steps=num_training_steps
-        )
-        
-        # Initialize gradient scaler for mixed precision training
-        scaler = GradScaler()
-        
-        # Training loop
-        best_f1 = 0
-        patience = 3
-        patience_counter = 0
-        
-        train_dataloader = DataLoader(
+        train_loader = DataLoader(
             train_dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=4
+            num_workers=4,  # Increased for faster data loading
+            pin_memory=True  # Enable pinned memory for faster GPU transfer
         )
         
-        if val_dataset:
-            val_dataloader = DataLoader(
+        if val_texts and val_tags:
+            val_dataset = EmotionDataset(val_texts, val_tags, self.tokenizer)
+            val_loader = DataLoader(
                 val_dataset,
-                batch_size=batch_size,
+                batch_size=batch_size * 2,  # Larger batch size for validation
                 shuffle=False,
-                num_workers=4
+                num_workers=4,
+                pin_memory=True
             )
         
+        # Configure optimizer with larger batch optimizations
+        optimizer = torch.optim.AdamW(
+            self.model.parameters(),
+            lr=learning_rate,
+            weight_decay=weight_decay,
+            betas=(0.9, 0.999),
+            eps=1e-8
+        )
+        
+        # Enable automatic mixed precision
+        scaler = torch.cuda.amp.GradScaler(enabled=fp16)
+        
+        # Enable flash attention if available
+        if flash_attention and hasattr(self.model, 'enable_flash_attention'):
+            self.model.enable_flash_attention()
+        
+        # Enable gradient checkpointing for memory efficiency
+        if gradient_checkpointing:
+            self.model.gradient_checkpointing_enable()
+        
+        # Training loop with optimizations
+        self.model.train()
         for epoch in range(num_epochs):
-            self.model.train()
             total_loss = 0
-            progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}")
+            progress_bar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}")
             
             for batch in progress_bar:
-                batch = {k: v.to(self.device) for k, v in batch.items()}
-                
-                # Mixed precision training
-                with autocast():
-                    loss, _ = self.model(
-                        input_ids=batch["input_ids"],
-                        attention_mask=batch["attention_mask"],
-                        labels=batch["labels"]
-                    )
+                with torch.cuda.amp.autocast(enabled=fp16 or bf16, dtype=torch.bfloat16 if bf16 else torch.float16):
+                    loss = self.model(**batch)[0]
+                    loss = loss / gradient_accumulation_steps
                 
                 scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
                 
-                scaler.step(optimizer)
-                scaler.update()
-                scheduler.step()
-                optimizer.zero_grad()
+                if (batch_idx + 1) % gradient_accumulation_steps == 0:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
                 
                 total_loss += loss.item()
-                progress_bar.set_postfix({"loss": loss.item()})
-                
-                # Log to wandb
-                wandb.log({
-                    "train_loss": loss.item(),
-                    "learning_rate": scheduler.get_last_lr()[0]
-                })
-            
-            avg_train_loss = total_loss / len(train_dataloader)
-            print(f"\nAverage training loss: {avg_train_loss}")
+                progress_bar.set_postfix({"loss": f"{total_loss/(batch_idx+1):.4f}"})
             
             # Validation
-            if val_dataset:
-                self.model.eval()
-                val_loss = 0
-                all_preds = []
-                all_labels = []
-                
-                with torch.no_grad():
-                    for batch in tqdm(val_dataloader, desc="Validation"):
-                        batch = {k: v.to(self.device) for k, v in batch.items()}
-                        loss, logits = self.model(
-                            input_ids=batch["input_ids"],
-                            attention_mask=batch["attention_mask"],
-                            labels=batch["labels"]
-                        )
-                        
-                        val_loss += loss.item()
-                        preds = torch.argmax(logits, dim=-1)
-                        
-                        all_preds.extend(preds[batch["attention_mask"] == 1].cpu().numpy())
-                        all_labels.extend(batch["labels"][batch["attention_mask"] == 1].cpu().numpy())
-                
-                val_loss = val_loss / len(val_dataloader)
-                val_f1 = f1_score(all_labels, all_preds, average='weighted')
-                
-                print(f"Validation loss: {val_loss}")
-                print(f"Validation F1: {val_f1}")
-                
-                wandb.log({
-                    "val_loss": val_loss,
-                    "val_f1": val_f1
-                })
-                
-                # Early stopping
-                if val_f1 > best_f1:
-                    best_f1 = val_f1
-                    patience_counter = 0
-                    print("Saving best model...")
-                    torch.save(self.model.state_dict(), f"{output_dir}/best_model.pt")
-                else:
-                    patience_counter += 1
-                    if patience_counter >= patience:
-                        print("Early stopping triggered")
-                        break
+            if val_texts and val_tags:
+                val_loss = self._validate(val_loader, fp16 or bf16, bf16)
+                print(f"Validation Loss: {val_loss:.4f}")
         
-        # Load best model
-        if val_dataset:
-            self.model.load_state_dict(torch.load(f"{output_dir}/best_model.pt"))
-        
-        # Save final model and tokenizer
-        print("Saving final model...")
-        torch.save(self.model.state_dict(), f"{output_dir}/final_model.pt")
+        # Save the model
+        self.model.save_pretrained(output_dir)
         self.tokenizer.save_pretrained(output_dir)
+
+    def _validate(self, val_loader, amp_enabled, bf16):
+        """Validation with mixed precision."""
+        self.model.eval()
+        total_loss = 0
         
-        wandb.finish()
-        print("Training completed!")
+        with torch.no_grad():
+            for batch in val_loader:
+                with torch.cuda.amp.autocast(enabled=amp_enabled, dtype=torch.bfloat16 if bf16 else torch.float16):
+                    loss = self.model(**batch)[0]
+                total_loss += loss.item()
+        
+        return total_loss / len(val_loader)
 
     def _convert_predictions_to_tags(
         self,
