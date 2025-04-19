@@ -97,30 +97,71 @@ This project trains an emotion classification model using PyTorch and Transforme
 
 ## Running on RunPod
 
-1. Create a RunPod account at https://www.runpod.io/
+### Prerequisites
+- RunPod account
+- Docker installed locally (for testing)
 
-2. Create a new pod:
-   - Select "Secure Cloud" or "Community Cloud"
-   - Choose a GPU instance (recommended: A100 or H100 for faster training)
-   - Select Ubuntu 22.04 as the base image
-   - Set the container image to your Docker Hub repository (after building and pushing the image)
+### Setup Steps
 
-3. Build and push the Docker image:
-```bash
-# Build the image
-docker build -t your-username/emotion-classifier:latest .
+1. **Create RunPod Template**
+   - Go to RunPod.io
+   - Choose "Templates" from the sidebar
+   - Click "New Template"
+   - Use the following settings:
+     - Container Image: `your-dockerhub-username/emotion-analysis:latest`
+     - Container Disk: `20GB`
+     - Volume Disk: `20GB`
+     - Start Command: `python runpod_train.py`
 
-# Push to Docker Hub
-docker push your-username/emotion-classifier:latest
+2. **Build and Push Docker Image**
+   ```bash
+   # Build the image
+   docker build -t your-dockerhub-username/emotion-analysis:latest .
+   
+   # Push to DockerHub
+   docker push your-dockerhub-username/emotion-analysis:latest
+   ```
+
+3. **Deploy on RunPod**
+   - Go to RunPod.io
+   - Select "Deploy"
+   - Choose your template
+   - Select GPU type (recommended: A100 or H100)
+   - Click "Deploy"
+
+### Project Structure
+```
+.
+├── data/
+│   ├── evaluation_data_filtered.json  # Training data
+│   └── results/                       # Results directory
+├── src/                              # Source code
+├── models/                           # Trained models
+├── Dockerfile                        # Docker configuration
+├── requirements.txt                  # Python dependencies
+├── runpod_train.py                  # RunPod training script
+└── README.md                        # This file
 ```
 
-4. Configure the pod:
-   - Set the container image to your pushed image
-   - Set the command to: `python3 src/train.py`
-   - Configure storage volumes if needed
-   - Set environment variables if required
+### Environment Variables
+- `WANDB_API_KEY`: (Optional) Weights & Biases API key for logging
+- `PYTHONPATH`: Set automatically in Dockerfile
 
-5. Start the pod and monitor training progress through the RunPod console
+### GPU Requirements
+- Minimum VRAM: 24GB
+- Recommended GPU: NVIDIA A100 (80GB) or H100
+- Supported architectures: CUDA 11.7+
+
+### Training Parameters
+- Batch size: 16
+- Learning rate: 2e-5
+- Epochs: 10
+- Model: RoBERTa-base
+
+### Results
+Training results will be saved in:
+- `models/emotion_classifier/`: Best model checkpoint
+- `data/results/evaluation_results.json`: Evaluation metrics
 
 ## Local Development
 

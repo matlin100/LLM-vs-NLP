@@ -1,25 +1,28 @@
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    python3.10 \
-    python3-pip \
     git \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
-WORKDIR /app
+WORKDIR /workspace
 
-# Copy requirements and install Python dependencies
+# Copy requirements file
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Copy source code and data
-COPY src/ /app/src/
-COPY data/ /app/data/
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . .
+
+# Download spacy model
+RUN python -m spacy download en_core_web_sm
 
 # Set environment variables
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/workspace
 
-# Command to run training
-CMD ["python3", "src/train.py"] 
+# Default command
+CMD ["bash"] 
