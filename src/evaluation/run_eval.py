@@ -35,7 +35,7 @@ def main():
     nlp_analyzer = NLPEmotionAnalyzer()
     
     # Load evaluation data
-    eval_data = load_evaluation_data("data/evaluation_data.json")
+    eval_data = load_evaluation_data("data/evaluation_data_filtered.json")
     ground_truth = [convert_to_analysis_result(data) for data in eval_data]
     texts = [data["text"] for data in eval_data]
     

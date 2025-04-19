@@ -158,7 +158,7 @@ def main():
     
     # Load and prepare data
     print("Loading data...")
-    data = load_data("data/evaluation_data.json")
+    data = load_data("data/evaluation_data_filtered.json")
     
     # Perform k-fold cross validation
     splits = split_data(data, n_splits=5)
