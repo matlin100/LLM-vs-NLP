@@ -11,6 +11,8 @@ from tqdm import tqdm
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from collections import Counter
+from transformers import FSMTForConditionalGeneration
+
 
 load_dotenv()
 
@@ -58,16 +60,19 @@ def augment_data(texts: List[str], tags: List[List[EmotionTag]], num_augmentatio
             aug_p=0.3
         ),
         # Back translation through multiple languages
-        naw.BackTranslationAug(
-            from_model_name='facebook/wmt19-en-de',
-            to_model_name='facebook/wmt19-de-en',
-            device='cuda'
-        ),
-        naw.BackTranslationAug(
-            from_model_name='facebook/wmt19-en-fr',
-            to_model_name='facebook/wmt19-fr-en',
-            device='cuda'
-        ),
+    naw.BackTranslationAug(
+    from_model_name='facebook/wmt19-en-de',
+    to_model_name='facebook/wmt19-de-en',
+    device='cuda',
+    force_reload=True
+),
+naw.BackTranslationAug(
+    from_model_name='facebook/wmt19-en-fr',
+    to_model_name='facebook/wmt19-fr-en',
+    device='cuda',
+    force_reload=True
+),
+
         # Random insertion
         naw.RandomWordAug(
             action="insert",
@@ -156,6 +161,14 @@ def main():
     random.seed(42)
     np.random.seed(42)
     
+
+    print("Loading translation models to avoid meta tensor issues...")
+    FSMTForConditionalGeneration.from_pretrained('facebook/wmt19-en-de').to("cuda")
+    FSMTForConditionalGeneration.from_pretrained('facebook/wmt19-de-en').to("cuda")
+    FSMTForConditionalGeneration.from_pretrained('facebook/wmt19-en-fr').to("cuda")
+    FSMTForConditionalGeneration.from_pretrained('facebook/wmt19-fr-en').to("cuda")
+
+    # Load and prepare data
     # Load and prepare data
     print("Loading data...")
     data = load_data("data/evaluation_data_filtered.json")
