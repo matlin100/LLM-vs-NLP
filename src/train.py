@@ -8,20 +8,16 @@ from dotenv import load_dotenv
 from models.base import EmotionTag, EmotionLabel
 from models.classifier.analyzer import CustomEmotionAnalyzer
 import nlpaug.augmenter.word as naw
-import nlpaug.augmenter.sentence as nas
 from tqdm import tqdm
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from collections import Counter
 import torch
-import nltk
+import logging
 
-# Download required NLTK resources
-print("Downloading required NLTK resources...")
-nltk.download('wordnet')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('punkt')
-nltk.download('omw-1.4')
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -55,38 +51,17 @@ def augment_data(
     num_augmentations: int = 3
 ):
     """Augment training data while preserving emotion tags."""
-    print("Augmenting training data...")
+    logger.info("Initializing RoBERTa-based augmentation...")
     
-    # Initialize augmenters with more robust settings
-    augmenters = [
-        # Contextual word embeddings using RoBERTa
-        naw.ContextualWordEmbsAug(
-            model_path='roberta-base',
-            action="substitute",
-            aug_p=0.3,
-            device='cuda',
-            batch_size=32
-        ),
-        # Random word insertion for diversity
-        naw.RandomWordAug(
-            action="insert",
-            aug_p=0.2
-        )
-    ]
-    
-    try:
-        # Only add WordNet augmenter if resources are available
-        nltk.data.find('corpora/wordnet')
-        augmenters.append(
-            naw.SynonymAug(
-                aug_src='wordnet',
-                aug_p=0.3,
-                aug_min=1,
-                aug_max=10
-            )
-        )
-    except LookupError:
-        print("WordNet resources not found, skipping synonym augmentation")
+    # Initialize only RoBERTa-based augmenter
+    augmenter = naw.ContextualWordEmbsAug(
+        model_path='roberta-base',
+        action="substitute",
+        aug_p=0.3,
+        device='cuda' if torch.cuda.is_available() else 'cpu',
+        batch_size=32,
+        top_k=20  # Increase diversity of substitutions
+    )
     
     augmented_texts = []
     augmented_tags = []
@@ -95,36 +70,36 @@ def augment_data(
         if len(text.split()) < 5 or not text_tags:
             continue
             
-        for augmenter in augmenters:
-            try:
-                for _ in range(num_augmentations):
-                    aug_text = augmenter.augment(text)[0]
-                    aug_tags = []
+        try:
+            # Apply augmentation multiple times
+            for _ in range(num_augmentations):
+                aug_text = augmenter.augment(text)[0]
+                aug_tags = []
+                
+                for tag in text_tags:
+                    tag_text = tag.text.lower()
+                    aug_text_lower = aug_text.lower()
                     
-                    for tag in text_tags:
-                        tag_text = tag.text.lower()
-                        aug_text_lower = aug_text.lower()
+                    if tag_text in aug_text_lower:
+                        start_idx = aug_text_lower.find(tag_text)
+                        end_idx = start_idx + len(tag_text)
                         
-                        if tag_text in aug_text_lower:
-                            start_idx = aug_text_lower.find(tag_text)
-                            end_idx = start_idx + len(tag_text)
-                            
-                            aug_tags.append(EmotionTag(
-                                label=tag.label,
-                                start=start_idx,
-                                end=end_idx,
-                                text=aug_text[start_idx:end_idx]
-                            ))
+                        aug_tags.append(EmotionTag(
+                            label=tag.label,
+                            start=start_idx,
+                            end=end_idx,
+                            text=aug_text[start_idx:end_idx]
+                        ))
+                
+                if aug_tags:
+                    augmented_texts.append(aug_text)
+                    augmented_tags.append(aug_tags)
                     
-                    if aug_tags:
-                        augmented_texts.append(aug_text)
-                        augmented_tags.append(aug_tags)
-                        
-            except Exception as e:
-                print(f"Augmentation failed for text {idx} with augmenter {type(augmenter).__name__}: {str(e)}")
-                continue
+        except Exception as e:
+            logger.warning(f"Augmentation failed for text {idx}: {str(e)}")
+            continue
     
-    print(f"Generated {len(augmented_texts)} augmented examples")
+    logger.info(f"Generated {len(augmented_texts)} augmented examples")
     return augmented_texts, augmented_tags
 
 def split_data(
@@ -161,7 +136,7 @@ def main():
         torch.cuda.manual_seed_all(42)
     
     # Load and prepare data
-    print("Loading data...")
+    logger.info("Loading data...")
     data = load_data("data/evaluation_data_filtered.json")
     
     # Perform k-fold cross validation
@@ -171,7 +146,7 @@ def main():
     best_model_fold = 0
     
     for fold, (train_data, val_data) in enumerate(splits, 1):
-        print(f"\nTraining fold {fold}/5")
+        logger.info(f"\nTraining fold {fold}/5")
         
         # Extract texts and tags
         train_texts = [item["text"] for item in train_data]
@@ -189,15 +164,15 @@ def main():
         train_texts.extend(aug_texts)
         train_tags.extend(aug_tags)
         
-        print(f"Training set size (with augmentation): {len(train_texts)}")
-        print(f"Validation set size: {len(val_texts)}")
+        logger.info(f"Training set size (with augmentation): {len(train_texts)}")
+        logger.info(f"Validation set size: {len(val_texts)}")
         
         # Initialize and train model
-        print("\nInitializing model...")
+        logger.info("\nInitializing model...")
         model = CustomEmotionAnalyzer()
         
         # Train with optimized parameters for H200
-        print("\nStarting training...")
+        logger.info("\nStarting training...")
         model.train(
             train_texts=train_texts,
             train_tags=train_tags,
@@ -212,7 +187,7 @@ def main():
         )
         
         # Evaluate on validation set
-        print("\nEvaluating fold...")
+        logger.info("\nEvaluating fold...")
         results = model.batch_analyze(val_texts)
         
         # Calculate metrics
@@ -229,22 +204,22 @@ def main():
         recall = correct / (total + 1e-10)
         f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
         
-        print(f"\nFold {fold} Metrics:")
-        print(f"Precision: {precision:.4f}")
-        print(f"Recall: {recall:.4f}")
-        print(f"F1 Score: {f1:.4f}")
+        logger.info(f"\nFold {fold} Metrics:")
+        logger.info(f"Precision: {precision:.4f}")
+        logger.info(f"Recall: {recall:.4f}")
+        logger.info(f"F1 Score: {f1:.4f}")
         
         # Save best model
         if f1 > best_f1:
             best_f1 = f1
             best_model_fold = fold
-            print(f"\nNew best model found in fold {fold}!")
+            logger.info(f"\nNew best model found in fold {fold}!")
             
             # Copy best model to final directory
             os.system(f"cp -r models/emotion_classifier_fold{fold}/* models/emotion_classifier/")
     
-    print(f"\nTraining completed! Best model from fold {best_model_fold} with F1 score: {best_f1:.4f}")
-    print("Final model saved to models/emotion_classifier")
+    logger.info(f"\nTraining completed! Best model from fold {best_model_fold} with F1 score: {best_f1:.4f}")
+    logger.info("Final model saved to models/emotion_classifier")
 
 if __name__ == "__main__":
     main() 
