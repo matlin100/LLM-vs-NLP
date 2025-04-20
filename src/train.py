@@ -21,15 +21,14 @@ from transformers import FSMTForConditionalGeneration, FSMTTokenizer
 def load_translation_models():
     print("Loading translation models manually...")
 
-    en_de_model = FSMTForConditionalGeneration.from_pretrained("facebook/wmt19-en-de")
-    en_de_model = en_de_model.to("cuda")
+    en_de_model = FSMTForConditionalGeneration.from_pretrained("facebook/wmt19-en-de").to("cuda")
     en_de_tokenizer = FSMTTokenizer.from_pretrained("facebook/wmt19-en-de")
 
-    de_en_model = FSMTForConditionalGeneration.from_pretrained("facebook/wmt19-de-en")
-    de_en_model = de_en_model.to("cuda")
+    de_en_model = FSMTForConditionalGeneration.from_pretrained("facebook/wmt19-de-en").to("cuda")
     de_en_tokenizer = FSMTTokenizer.from_pretrained("facebook/wmt19-de-en")
 
     return en_de_model, en_de_tokenizer, de_en_model, de_en_tokenizer
+
 
 def load_data(data_path: str) -> List[Dict]:
     """Load all data from JSON file."""
@@ -55,7 +54,15 @@ def get_text_label_distribution(text_tags: List[EmotionTag]) -> str:
     counter = Counter(tag.label.value for tag in text_tags)
     return "_".join(f"{label}_{count}" for label, count in sorted(counter.items()))
 
-def augment_data(texts: List[str], tags: List[List[EmotionTag]], num_augmentations: int = 3):
+def augment_data(
+    texts: List[str],
+    tags: List[List[EmotionTag]],
+    num_augmentations: int = 3,
+    en_de_model=None,
+    en_de_tokenizer=None,
+    de_en_model=None,
+    de_en_tokenizer=None
+):
     """Augment training data while preserving emotion tags."""
     print("Augmenting training data...")
     
@@ -191,9 +198,18 @@ def main():
         
         val_texts = [item["text"] for item in val_data]
         val_tags = [convert_to_tags(item) for item in val_data]
-        
+        en_de_model, en_de_tokenizer, de_en_model, de_en_tokenizer = load_translation_models()
+
         # Augment training data
-        aug_texts, aug_tags = augment_data(train_texts, train_tags)
+        aug_texts, aug_tags = augment_data(
+        train_texts,
+        train_tags,
+        num_augmentations=3,
+        en_de_model=en_de_model,
+        en_de_tokenizer=en_de_tokenizer,
+        de_en_model=de_en_model,
+        de_en_tokenizer=de_en_tokenizer
+    )
         train_texts.extend(aug_texts)
         train_tags.extend(aug_tags)
         
