@@ -6,7 +6,7 @@ from typing import List, Dict, Tuple
 import random
 from dotenv import load_dotenv
 from models.base import EmotionTag, EmotionLabel
-from models.classifier.analyzer import CustomEmotionAnalyzer
+from src.models.classifier.analyzer import CustomEmotionAnalyzer
 import nlpaug.augmenter.word as naw
 from tqdm import tqdm
 import numpy as np
