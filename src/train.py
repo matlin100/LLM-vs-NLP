@@ -13,20 +13,23 @@ from tqdm import tqdm
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from collections import Counter
+import torch
 
 load_dotenv()
 from transformers import FSMTForConditionalGeneration, FSMTTokenizer
 
-print("Loading translation models manually...")
+def load_translation_models():
+    print("Loading translation models manually...")
 
-en_de_model = FSMTForConditionalGeneration.from_pretrained("facebook/wmt19-en-de")
-en_de_model = en_de_model.to("cuda")
-en_de_tokenizer = FSMTTokenizer.from_pretrained("facebook/wmt19-en-de")
+    en_de_model = FSMTForConditionalGeneration.from_pretrained("facebook/wmt19-en-de")
+    en_de_model = en_de_model.to("cuda")
+    en_de_tokenizer = FSMTTokenizer.from_pretrained("facebook/wmt19-en-de")
 
-de_en_model = FSMTForConditionalGeneration.from_pretrained("facebook/wmt19-de-en")
-de_en_model = de_en_model.to("cuda")
-de_en_tokenizer = FSMTTokenizer.from_pretrained("facebook/wmt19-de-en")
+    de_en_model = FSMTForConditionalGeneration.from_pretrained("facebook/wmt19-de-en")
+    de_en_model = de_en_model.to("cuda")
+    de_en_tokenizer = FSMTTokenizer.from_pretrained("facebook/wmt19-de-en")
 
+    return en_de_model, en_de_tokenizer, de_en_model, de_en_tokenizer
 
 def load_data(data_path: str) -> List[Dict]:
     """Load all data from JSON file."""
