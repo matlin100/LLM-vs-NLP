@@ -14,6 +14,14 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from collections import Counter
 import torch
+import nltk
+
+# Download required NLTK resources
+print("Downloading required NLTK resources...")
+nltk.download('wordnet')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('punkt')
+nltk.download('omw-1.4')
 
 load_dotenv()
 
@@ -49,15 +57,8 @@ def augment_data(
     """Augment training data while preserving emotion tags."""
     print("Augmenting training data...")
     
-    # Initialize augmenters with optimized settings
+    # Initialize augmenters with more robust settings
     augmenters = [
-        # Synonym replacement with WordNet
-        naw.SynonymAug(
-            aug_src='wordnet',
-            aug_p=0.3,
-            aug_min=1,
-            aug_max=10
-        ),
         # Contextual word embeddings using RoBERTa
         naw.ContextualWordEmbsAug(
             model_path='roberta-base',
@@ -73,6 +74,20 @@ def augment_data(
         )
     ]
     
+    try:
+        # Only add WordNet augmenter if resources are available
+        nltk.data.find('corpora/wordnet')
+        augmenters.append(
+            naw.SynonymAug(
+                aug_src='wordnet',
+                aug_p=0.3,
+                aug_min=1,
+                aug_max=10
+            )
+        )
+    except LookupError:
+        print("WordNet resources not found, skipping synonym augmentation")
+    
     augmented_texts = []
     augmented_tags = []
     
@@ -80,8 +95,8 @@ def augment_data(
         if len(text.split()) < 5 or not text_tags:
             continue
             
-        try:
-            for augmenter in augmenters:
+        for augmenter in augmenters:
+            try:
                 for _ in range(num_augmentations):
                     aug_text = augmenter.augment(text)[0]
                     aug_tags = []
@@ -105,9 +120,9 @@ def augment_data(
                         augmented_texts.append(aug_text)
                         augmented_tags.append(aug_tags)
                         
-        except Exception as e:
-            print(f"Augmentation failed for text {idx}: {str(e)}")
-            continue
+            except Exception as e:
+                print(f"Augmentation failed for text {idx} with augmenter {type(augmenter).__name__}: {str(e)}")
+                continue
     
     print(f"Generated {len(augmented_texts)} augmented examples")
     return augmented_texts, augmented_tags
