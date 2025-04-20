@@ -200,7 +200,7 @@ def main():
         
         val_texts = [item["text"] for item in val_data]
         val_tags = [convert_to_tags(item) for item in val_data]
-        en_de_model, en_de_tokenizer, de_en_model, de_en_tokenizer = load_translation_models()
+    
 
         # Augment training data
         aug_texts, aug_tags = augment_data(
