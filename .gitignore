@@ -154,12 +154,8 @@ venv/
 ENV/
 
 # Project specific
-emotion_model/
-wandb/
-*.pt
-*.pth
-*.ckpt
-*.h5
+
+
 
 # macOS
 .DS_Store
